@@ -1,0 +1,420 @@
+/* 
+*	COMP10002 (Foundations of Algorithms) Assessment 1
+* 
+* 	A recommender algorithm that reads an set of points, P, each containing a  
+*   set of dimensions (i.e. point = <d1, d2, ... di, ... dn>). The skyline     
+*   operator returns the subset of all points that are not dominated by any   
+*   point in P. 
+*	
+*	Author:			 Nina Averill
+*	Last Modified:	 25/04/2017	
+*
+*
+*   Algorithms are fun!
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+#define DIV "==========" /* stage header */
+/* stage numbers */
+#define STAGE_NUM_ONE 1 
+#define STAGE_NUM_TWO 2
+#define STAGE_NUM_THREE 3
+#define STAGE_NUM_FOUR 4
+#define STAGE_NUM_FIVE 5
+
+#define READ_OK 1 /* reading point succeeded */
+#define READ_FAILED 0 /* reading point failed */
+
+#define MAX_NUM_POINTS 99 /* maximum number of points */
+#define MAX_NUM_DIMENSIONS 10 /* maximum number of dimensions */
+
+#define DOMINATED 0 /*point is dominated in all dimensions*/
+#define NOT_DOMINATED -1  /*point is not dominated in all dimensions*/
+
+typedef double point_t[MAX_NUM_DIMENSIONS];
+
+
+/* function prototypes */
+void stage_one(point_t one_point, int *num_points, int num_dimensions);
+void stage_two(point_t points[], int *num_points, int num_dimensions, 
+	double *coordinate_sums);
+void stage_three(double *coordinate_sums, int num_points);
+void stage_four(point_t points[], int num_points, int num_dimensions);
+void stage_five(point_t points[], int num_points, int num_dimensions);
+
+void print_stage_heading(int stage);
+int read_one_point(point_t one_point, int num_dimensions);
+/* add your own function prototypes here */
+
+void print_point(point_t one_point, int num_dimensions, int num_point);
+double point_sum_calc(point_t one_point, int num_dimensions, double 
+	*coordinate_sums);
+int test_skyline_point(point_t p1, int p1_index, point_t p2, int p2_index, int 
+	num_dimensions);
+void sort_array(int skyline_points[], int skyline_dom_count[], int num_points);
+void int_swap(int *p1, int *p2);
+
+
+/* main program binds it all together */
+int
+main(int argc, char *argv[]) {
+
+	/* storage for the input data */
+	int num_dimensions;
+	point_t points[MAX_NUM_POINTS];
+	
+	/* storage for statistics */
+	int num_points = 0; /* number of points read in */
+	double coordinate_sums[MAX_NUM_POINTS]; /* coordinate sums of the points */
+	
+	/* read the first line - number of dimensions */
+	scanf("%d", &num_dimensions);
+	
+	/* stage 1 */
+	stage_one(points[0], &num_points, num_dimensions);
+
+	/* stage 2 */
+	stage_two(points, &num_points, num_dimensions, 
+		coordinate_sums);
+	
+	/* stage 3 */
+	stage_three(coordinate_sums, num_points);
+
+	/* stage 4 */
+	stage_four(points, num_points, num_dimensions);
+
+	/* stage 5 */
+	stage_five(points, num_points, num_dimensions);
+	
+	/* and done! */
+	return 0;
+}
+
+/* print out a stage heading, with a prior blank line once the stage number
+   goes plus one */
+void 
+print_stage_heading(int stage) {
+	/* main job is to print the stage number passed as an argument */
+	if (stage > STAGE_NUM_ONE) {
+		/* separate the stages */
+		printf("\n");
+	}
+	printf("Stage %d\n%s\n", stage, DIV);
+}
+
+/* read the coordinates of one point, store them in one_point
+*/
+int 
+read_one_point(point_t one_point, int num_dimensions) {
+	int i = 0;
+	
+	/* keep reading until num_dimensions numbers have been obtained */
+	while (i < num_dimensions) {
+		if (scanf("%lf", one_point+i) != 1) {
+			return READ_FAILED;
+		}
+		i++;
+	}
+	
+	return READ_OK;
+}
+
+/* stage 1 - read in and print one point
+*/
+void 
+stage_one(point_t one_point, int *num_points, int num_dimensions) {
+	/* print stage heading for stage 1 */
+	print_stage_heading(STAGE_NUM_ONE);
+	
+	/* add your code here for stage 1 */
+		/*Read in and print point 01*/
+	read_one_point(one_point, num_dimensions);
+	*num_points += 1;
+	print_point(one_point, num_dimensions, STAGE_NUM_ONE);
+}
+
+/* function that points a single point int the format <d1, d2, ..., dn> ,  
+ given an array of type point_t, the number of dimensions in the point, and 
+ the index number of one_point in points */
+void 
+print_point(point_t one_point, int num_dimensions, int num_point){
+	int i;
+
+	/* format and print one_point*/
+	printf("Point %02d: ", num_point);
+
+	printf("<");
+	for (i=0; i<num_dimensions; i++){
+		printf("%.2f", one_point[i]);
+		/*Continue seperating the sections with a comma until last dimension 
+		is reached */
+		if (i!=num_dimensions-1){
+			printf(", ");
+		}
+	}
+	printf(">");
+	printf("\n");
+}
+
+/* stage 2 - read in the rest of the points and visualise them */
+void 
+stage_two(point_t points[], int *num_points, int num_dimensions, 
+	double *coordinate_sums) {
+	/* print stage heading for stage 2 */
+	print_stage_heading(STAGE_NUM_TWO);
+	
+	/* add your code here for stage 2 */
+	point_t one_point;
+	int curr_point, i, dash_count;
+	double curr_point_sum;
+
+	/* reads in values of a single point to array points, and increments the 
+		count of the total number of points by one */
+	while (read_one_point(one_point, num_dimensions)){
+		for(i=0; i<num_dimensions; i++){
+			points[*num_points][i] = one_point[i];
+		}
+		*num_points += 1;
+	}
+
+	/* Store the total sum of coordinates in a point to coordinate_sums*/
+	for (curr_point=0; curr_point<*num_points; curr_point++){
+		curr_point_sum = point_sum_calc(points[curr_point], num_dimensions, 
+			coordinate_sums);
+		curr_point_sum = curr_point_sum/100.0;
+		coordinate_sums[curr_point] = curr_point_sum;
+
+		/* prints a visualisation of the point's coordinate sum */
+		printf("Point %02d, sum of coordinates (/100): %5.2f ", 
+			curr_point+1, curr_point_sum);
+
+		printf("|");
+
+		/* for every integer in the range (0, ceiling(curr_point_sum)], print 
+		'-', except for every integer divisible by 10, print '+' */
+		for(dash_count = 0; dash_count<curr_point_sum; dash_count++){
+			if(((dash_count+1)%10!=0 || dash_count==0) && curr_point_sum!=0){
+				printf("-");
+			}
+			/*If sum of coordinates is zero, print nothing*/
+			else if (curr_point_sum==0){
+				break;
+			}
+			else {
+				printf("+");
+			}
+		}
+	printf("\n");
+	}
+}
+
+/* function that calculates the total sum of coordinates of a single point*/
+double 
+point_sum_calc(point_t one_point, int num_dimensions, double *coordinate_sums){
+	int i;
+	double curr_point_sum = 0;
+	/* calculates the sum of co-ordinates */
+	for (i=0; i<num_dimensions; i++){
+		curr_point_sum += one_point[i];
+	}
+	return curr_point_sum;
+}
+
+/* stage 3 - print statistics
+*/
+void 
+stage_three(double *coordinate_sums, int num_points) {
+	/* print stage heading for stage 3 */
+	print_stage_heading(STAGE_NUM_THREE);
+	
+	/* add your code here for stage 3 */
+	int i, max_point;
+	double max_sum;
+
+
+	max_sum = coordinate_sums[0];
+	max_point = 0;
+	/*find the maximum coordinate sum value*/
+	for(i=0; i<num_points; i++){
+		if (coordinate_sums[i]>max_sum){
+			max_sum = coordinate_sums[i];
+			max_point = i;
+		}
+	}
+
+	/*print statistics of total number of points, point with largest 
+	coordinate sum and the largest coordinate sum*/
+	printf("Total: %d points\n", num_points);
+	printf("Point of largest sum of coordinates: %02d\n", max_point+1);
+	printf("Largest sum of coordinates: %.2f\n", 
+		100*coordinate_sums[max_point]);
+}
+
+/* stage 4 - find and print the skyline points
+*/
+
+
+void 
+stage_four(point_t points[], int num_points, int num_dimensions) {
+	/* print stage heading for stage 4 */
+	print_stage_heading(STAGE_NUM_FOUR);
+	
+	/* add your code here for stage 4 */
+	int point, p1, p2, point_test;
+
+	int skyline_point_arr[MAX_NUM_POINTS] = 
+		{[0 ... MAX_NUM_POINTS-1] = NOT_DOMINATED}; /* array that stores 
+		whether points are found to be dominated (0)  or not dominated (-1), 
+		initially assume points are not dominated*/
+
+
+	/*Find points that are not dominated by another in every coordinate*/
+	for (p1 = 0; p1<num_points; p1++){ /*loop through points*/
+		for (p2=num_points-1; p2>p1; p2--){ /*loops through points 
+		greater than p1*/
+			/*skip over point that have been found to be dominated*/
+			if (skyline_point_arr[p1]!=DOMINATED || 
+					skyline_point_arr[p2]!=DOMINATED){
+				point_test = test_skyline_point(points[p1], p1, points[p2], p2, 
+					num_dimensions);
+
+				if (point_test!=NOT_DOMINATED){
+					skyline_point_arr[point_test] = DOMINATED;
+				}
+			}
+		}
+	}
+
+	/*prints out all points with value NOT_DOMINATED in skyline_point_arr*/
+	printf("Skyline points:\n");
+	for(point=0; point<num_points; point++){
+		if (skyline_point_arr[point]!=DOMINATED){
+			print_point(points[point], num_dimensions, point+1);
+		}
+	}
+
+}
+
+/* tests if one point dominates another in all coordinates. */
+int 
+test_skyline_point(point_t p1, int p1_index, point_t p2, int p2_index, 
+		int num_dimensions){
+	int measure, p1_dom_count=0, p2_dom_count=0;	
+
+	/*Finds the number of coordinates that are dominated by each point*/
+	for (measure=0; measure<num_dimensions; measure++){
+		if (p1[measure]>p2[measure]){
+			p1_dom_count++;
+		}
+		else if (p2[measure]>p1[measure]){
+			p2_dom_count++;
+		}
+		else if(p2[measure]==p1[measure]){
+			p1_dom_count++;
+			p2_dom_count++;
+		}
+	}
+
+	/* if the number of dimensions either point dominates is equal to the 
+	total number of dimensions, point is dominated and index of point is
+	returned*/
+	if (p1_dom_count==num_dimensions){
+		return p2_index;
+	}
+	else if(p2_dom_count==num_dimensions){
+		return p1_index;
+	}
+	else {
+		return NOT_DOMINATED;
+	}
+}
+
+
+/* stage 5 - sort and print the skyline points by the number of points 
+   they dominate
+*/
+void 
+stage_five(point_t points[], int num_points, int num_dimensions) {
+	/* print stage heading for stage 5 */
+	print_stage_heading(STAGE_NUM_FIVE);
+
+	int dom_points[MAX_NUM_POINTS] = 
+		{[0 ... MAX_NUM_POINTS-1] = NOT_DOMINATED};
+	int num_points_dominated[MAX_NUM_POINTS] = {0};
+	int skyline_points[MAX_NUM_POINTS] = {0};
+	int skyline_dom_count[MAX_NUM_POINTS] = {0};
+	int point, p1, p2, point_count = 0, point_test, index=0;
+
+	/* add your code here for stage 5 */
+	printf("Sorted skyline points:\n");
+
+	/*Find skyline points*/
+	for (p1 = 0; p1<num_points; p1++){
+		/*Store index of points in skyline_points*/
+		skyline_points[p1] = p1; 
+		for (p2=num_points-1; p2>p1; p2--){
+			skyline_points[p2] = p2; 
+			point_test = test_skyline_point(points[p1], p1, 
+				points[p2], p2, num_dimensions);
+
+			if (point_test!=NOT_DOMINATED){
+				dom_points[point_test] = DOMINATED;
+				/*count number of points dominated by each point*/
+				if (p1!=point_test){
+					num_points_dominated[p1]++;
+				}
+				else {
+					num_points_dominated[p2]++;
+				}
+			}
+		}
+	}
+
+	/*store index of skyline point in in skyline_points and number of points 
+	dominated in skyline_dom_count*/
+	for(point=0; point<num_points; point++){
+		if (dom_points[point]!=DOMINATED){
+			skyline_points[index] = point;
+			skyline_dom_count[index] = num_points_dominated[point];
+			point_count++;
+			index++; 
+		}
+	}
+	/*Sort arrays in descending order of points dominated*/
+	sort_array(skyline_points, skyline_dom_count, point_count);
+
+	for (point=0; point<point_count; point++){
+		/*Print skyline points in descending order of points dominated*/
+		print_point(points[skyline_points[point]], num_dimensions,
+			 skyline_points[point]+1);
+		printf("Number of points dominated: %d", 
+				skyline_dom_count[point]);
+		printf("\n");
+	}
+}
+
+/*sort skyline points in descending order of points dominated*/
+void 
+sort_array(int skyline_points[], int skyline_dom_count[], int num_points) {
+	int i,j;
+	/* assume that arrays contain have valid values */
+	for(i=1; i<num_points; i++){
+		for(j=i-1; j>=0 && skyline_dom_count[j]<skyline_dom_count[j+1]; j--){
+			/*swap corresponding points in both arrays to correct positions*/
+			int_swap(&skyline_dom_count[j], &skyline_dom_count[j+1]);	
+			int_swap(&skyline_points[j], &skyline_points[j+1]);
+		}
+	}
+}
+
+/* exchange the values of the two variables indicated by the arguments */
+void 
+int_swap(int *p1, int *p2){
+	int temp;
+	temp = *p1;
+	*p1=*p2;
+	*p2 = temp;
+}
